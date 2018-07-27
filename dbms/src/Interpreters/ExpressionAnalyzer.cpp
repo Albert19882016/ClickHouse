@@ -2679,9 +2679,18 @@ bool ExpressionAnalyzer::appendJoin(ExpressionActionsChain & chain, bool only_ty
                 if (!select_query)
                     throw Exception("Expected ASTSelectQuery as joined subquery.", ErrorCodes::LOGICAL_ERROR);
 
-                /// Append right join keys to subquery expression list. Duplicate expressions will be removed further.
-                for (auto & expr : join_key_asts_right)
-                    select_query->select_expression_list->children.emplace_back(expr);
+                NameSet requested_columns;
+                for (auto & child : select_query->select_expression_list->children)
+                    requested_columns.insert(child->getAliasOrColumnName());
+
+                /// Append right join keys to subquery expression list.
+                for (size_t i = 0; i < join_key_names_right.size(); ++i)
+                {
+                    auto & name = join_key_names_right[i];
+                    auto & expr = join_key_asts_right[i];
+                    if (requested_columns.find(name) == requested_columns.end())
+                        select_query->select_expression_list->children.emplace_back(expr);
+                }
 
                 add_aliases_to_duplicating_joined_columns(select_query->select_expression_list);
             }
